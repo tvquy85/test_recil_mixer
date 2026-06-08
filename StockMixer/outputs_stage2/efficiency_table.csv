@@ -1,0 +1,11 @@
+dataset,variant,seed,device_resolved,num_params,train_log_epochs,time_per_epoch_sec,gpu_memory_peak,RankIC
+nasdaq,context_only,0,cuda,474710,30,,,0.032943018986747744
+nasdaq,context_only,1,cuda,474710,30,,,0.01899386297546441
+nasdaq,full,0,cuda,474710,30,,,0.015123949595923508
+nasdaq,full,1,cuda,474710,30,,,0.01140627281972156
+nasdaq,moe,0,cuda,474710,30,,,0.017249198403331757
+nasdaq,moe,1,cuda,474710,30,,,0.02229730269021501
+nasdaq,single_gate,0,cuda,474710,30,,,0.031345433955260585
+nasdaq,single_gate,1,cuda,474710,30,,,0.03275938520629454
+nasdaq,static,0,cuda,474710,30,,,0.031091654429504848
+nasdaq,static,1,cuda,474710,30,,,0.030934439216015013

@@ -1,0 +1,14 @@
+dataset,variant,seed,signal,context_feature,correlation,num_days
+nasdaq,full,0,scale_0_weight,market_volatility,0.3450524444702896,237
+nasdaq,full,0,expert_0_weight,market_volatility,-0.05213950800631013,237
+nasdaq,full,0,expert_0_weight,pca_ratio,0.171068038797329,237
+nasdaq,full,0,expert_0_weight,cross_sectional_dispersion,-0.06620630745902481,237
+nasdaq,full,0,expert_1_weight,market_volatility,0.2807174462730006,237
+nasdaq,full,0,expert_1_weight,pca_ratio,0.015911929315503465,237
+nasdaq,full,0,expert_1_weight,cross_sectional_dispersion,-0.0754050232960014,237
+nasdaq,full,0,expert_2_weight,market_volatility,-0.5367785499636819,237
+nasdaq,full,0,expert_2_weight,pca_ratio,-0.38256073995470896,237
+nasdaq,full,0,expert_2_weight,cross_sectional_dispersion,0.297962683823288,237
+nasdaq,full,0,expert_3_weight,market_volatility,0.3280131558390026,237
+nasdaq,full,0,expert_3_weight,pca_ratio,0.44383789134912843,237
+nasdaq,full,0,expert_3_weight,cross_sectional_dispersion,-0.2677407775796388,237

@@ -1,0 +1,39 @@
+# Data and binary experiment artifacts
+StockMixer/dataset/
+*.pkl
+*.npy
+*.npz
+*.pt
+
+# Local smoke/test output trees not needed for the analysis snapshot
+StockMixer/outputs_test/
+StockMixer/outputs_final_smoke/
+StockMixer/outputs_stage0/
+
+# Python/cache/build artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+build/
+dist/
+*.egg-info/
+
+# Local environments and machine-specific files
+.venv/
+venv/
+env/
+*.log
+*.tmp
+*.bak
+
+# Large/local tools
+tectonic.exe
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
