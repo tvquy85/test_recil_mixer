@@ -1,14 +1,26 @@
-"""Mask-aware financial metrics for ReCIL."""
+"""Mask-aware financial metrics for ReCIL.
+
+The default API remains backward-compatible with the pre-patch evaluator while
+optionally exposing RankICIR, turnover, and transaction-cost diagnostics.
+"""
 
 from __future__ import annotations
+
+from typing import Sequence
 
 import numpy as np
 
 
+def _to_numpy(array) -> np.ndarray:
+    if hasattr(array, "detach"):
+        array = array.detach().cpu().numpy()
+    return np.asarray(array)
+
+
 def _valid_vectors(pred, target, mask):
-    pred_arr = np.asarray(pred, dtype=np.float64).reshape(-1)
-    target_arr = np.asarray(target, dtype=np.float64).reshape(-1)
-    mask_arr = np.asarray(mask, dtype=np.float64).reshape(-1)
+    pred_arr = _to_numpy(pred).astype(np.float64).reshape(-1)
+    target_arr = _to_numpy(target).astype(np.float64).reshape(-1)
+    mask_arr = _to_numpy(mask).astype(np.float64).reshape(-1)
     if pred_arr.shape != target_arr.shape or pred_arr.shape != mask_arr.shape:
         raise ValueError("pred, target, and mask must have the same flattened shape")
     valid = np.isfinite(pred_arr) & np.isfinite(target_arr) & np.isfinite(mask_arr) & (mask_arr > 0.5)
@@ -16,45 +28,35 @@ def _valid_vectors(pred, target, mask):
 
 
 def pearson_corr_masked(pred, target, mask, eps: float = 1e-8, min_valid: int = 3) -> float:
-    """Compute single-day Pearson IC using only valid masked assets."""
-
     pred_valid, target_valid = _valid_vectors(pred, target, mask)
     if pred_valid.size < min_valid:
         return float("nan")
-
     pred_centered = pred_valid - pred_valid.mean()
     target_centered = target_valid - target_valid.mean()
     pred_std = float(np.sqrt(np.mean(pred_centered * pred_centered)))
     target_std = float(np.sqrt(np.mean(target_centered * target_centered)))
     if pred_std <= eps or target_std <= eps:
         return float("nan")
-
     corr = float(np.mean(pred_centered * target_centered) / (pred_std * target_std))
     return float(np.clip(corr, -1.0, 1.0))
 
 
 def _average_ranks(values: np.ndarray) -> np.ndarray:
-    """Return deterministic average ranks for a 1-D vector."""
-
     values = np.asarray(values, dtype=np.float64).reshape(-1)
     order = np.argsort(values, kind="mergesort")
     sorted_values = values[order]
     ranks = np.empty(values.shape[0], dtype=np.float64)
-
     start = 0
     while start < sorted_values.shape[0]:
         end = start + 1
         while end < sorted_values.shape[0] and sorted_values[end] == sorted_values[start]:
             end += 1
-        average_rank = 0.5 * (start + end - 1)
-        ranks[order[start:end]] = average_rank
+        ranks[order[start:end]] = 0.5 * (start + end - 1)
         start = end
     return ranks
 
 
 def spearman_corr_masked(pred, target, mask, eps: float = 1e-8, min_valid: int = 3) -> float:
-    """Compute single-day Spearman RankIC using average ranks on valid assets."""
-
     pred_valid, target_valid = _valid_vectors(pred, target, mask)
     if pred_valid.size < min_valid:
         return float("nan")
@@ -63,10 +65,10 @@ def spearman_corr_masked(pred, target, mask, eps: float = 1e-8, min_valid: int =
     return pearson_corr_masked(pred_rank, target_rank, np.ones_like(pred_rank), eps=eps, min_valid=min_valid)
 
 
-def _as_day_major(preds, targets, masks, asset_major: bool):
-    pred_arr = np.asarray(preds, dtype=np.float64)
-    target_arr = np.asarray(targets, dtype=np.float64)
-    mask_arr = np.asarray(masks, dtype=np.float64)
+def _as_day_major(preds, targets, masks, asset_major: bool = False):
+    pred_arr = _to_numpy(preds).astype(np.float64)
+    target_arr = _to_numpy(targets).astype(np.float64)
+    mask_arr = _to_numpy(masks).astype(np.float64)
     if pred_arr.shape != target_arr.shape or pred_arr.shape != mask_arr.shape:
         raise ValueError("preds, targets, and masks must have the same shape")
     if pred_arr.ndim == 1:
@@ -79,19 +81,19 @@ def _as_day_major(preds, targets, masks, asset_major: bool):
             target_arr = target_arr.T
             mask_arr = mask_arr.T
     else:
-        raise ValueError("preds, targets, and masks must have shape [N], [D, N], or [N, D]")
+        pred_arr = pred_arr.reshape(-1, pred_arr.shape[-1])
+        target_arr = target_arr.reshape(-1, target_arr.shape[-1])
+        mask_arr = mask_arr.reshape(-1, mask_arr.shape[-1])
     return pred_arr, target_arr, mask_arr
 
 
-def _valid_indices(pred, target, mask) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    pred_arr = np.asarray(pred, dtype=np.float64).reshape(-1)
-    target_arr = np.asarray(target, dtype=np.float64).reshape(-1)
-    mask_arr = np.asarray(mask, dtype=np.float64).reshape(-1)
+def _valid_indices(pred, target, mask):
+    pred_arr = _to_numpy(pred).astype(np.float64).reshape(-1)
+    target_arr = _to_numpy(target).astype(np.float64).reshape(-1)
+    mask_arr = _to_numpy(mask).astype(np.float64).reshape(-1)
     if pred_arr.shape != target_arr.shape or pred_arr.shape != mask_arr.shape:
         raise ValueError("pred, target, and mask must have the same flattened shape")
-    valid = np.flatnonzero(
-        np.isfinite(pred_arr) & np.isfinite(target_arr) & np.isfinite(mask_arr) & (mask_arr > 0.5)
-    )
+    valid = np.flatnonzero(np.isfinite(pred_arr) & np.isfinite(target_arr) & np.isfinite(mask_arr) & (mask_arr > 0.5))
     return pred_arr, target_arr, valid
 
 
@@ -101,8 +103,6 @@ def _top_k_valid_indices(values: np.ndarray, valid: np.ndarray, k_eff: int) -> n
 
 
 def precision_at_k(pred, target, mask, k: int = 10) -> float:
-    """Compute top-K overlap precision among valid assets only."""
-
     pred_arr, target_arr, valid = _valid_indices(pred, target, mask)
     if valid.size == 0:
         return float("nan")
@@ -115,8 +115,6 @@ def precision_at_k(pred, target, mask, k: int = 10) -> float:
 
 
 def long_only_daily_return(pred, target_return, mask, k: int = 10) -> float:
-    """Average realized return of predicted top-K valid assets."""
-
     pred_arr, target_arr, valid = _valid_indices(pred, target_return, mask)
     if valid.size == 0:
         return float("nan")
@@ -127,9 +125,36 @@ def long_only_daily_return(pred, target_return, mask, k: int = 10) -> float:
     return float(target_arr[pred_top].mean())
 
 
-def sharpe_ratio(daily_returns, annualization: int = 252, eps: float = 1e-8) -> float:
-    """Compute annualized Sharpe ratio for finite daily returns."""
+def _top_k_sets(pred_arr: np.ndarray, target_arr: np.ndarray, mask_arr: np.ndarray, k: int) -> list[set[int]]:
+    selections: list[set[int]] = []
+    for day in range(pred_arr.shape[0]):
+        _, _, valid = _valid_indices(pred_arr[day], target_arr[day], mask_arr[day])
+        if valid.size == 0:
+            selections.append(set())
+            continue
+        k_eff = min(int(k), int(valid.size))
+        selections.append(set(_top_k_valid_indices(pred_arr[day], valid, k_eff).tolist()))
+    return selections
 
+
+def topk_turnover(preds, targets, masks, k: int = 10) -> np.ndarray:
+    pred_arr, target_arr, mask_arr = _as_day_major(preds, targets, masks)
+    selections = _top_k_sets(pred_arr, target_arr, mask_arr, k)
+    values = np.empty(len(selections), dtype=np.float32)
+    previous: set[int] | None = None
+    for idx, current in enumerate(selections):
+        if not current:
+            values[idx] = np.nan
+        elif previous is None or not previous:
+            values[idx] = 0.0
+        else:
+            values[idx] = 1.0 - len(current & previous) / max(len(current), 1)
+        if current:
+            previous = current
+    return values
+
+
+def sharpe_ratio(daily_returns: Sequence[float], annualization: int = 252, eps: float = 1e-8) -> float:
     returns = np.asarray(daily_returns, dtype=np.float64).reshape(-1)
     returns = returns[np.isfinite(returns)]
     if returns.size == 0:
@@ -139,14 +164,7 @@ def sharpe_ratio(daily_returns, annualization: int = 252, eps: float = 1e-8) -> 
 
 
 def compute_ic_series(preds, targets, masks, asset_major: bool = False, eps: float = 1e-8, min_valid: int = 3):
-    """Compute per-day IC and RankIC series.
-
-    The default multi-day layout is day-major ``[D, N]``. Set
-    ``asset_major=True`` only for old StockMixer evaluator arrays shaped
-    ``[N, D]``.
-    """
-
-    pred_arr, target_arr, mask_arr = _as_day_major(preds, targets, masks, asset_major)
+    pred_arr, target_arr, mask_arr = _as_day_major(preds, targets, masks, asset_major=asset_major)
     ic = np.empty(pred_arr.shape[0], dtype=np.float32)
     rankic = np.empty(pred_arr.shape[0], dtype=np.float32)
     for day in range(pred_arr.shape[0]):
@@ -155,15 +173,17 @@ def compute_ic_series(preds, targets, masks, asset_major: bool = False, eps: flo
     return {"IC": ic, "RankIC": rankic}
 
 
-def _nanmean(values: np.ndarray) -> float:
-    valid = values[np.isfinite(values)]
+def _nanmean(values) -> float:
+    arr = np.asarray(values, dtype=np.float64).reshape(-1)
+    valid = arr[np.isfinite(arr)]
     if valid.size == 0:
         return float("nan")
     return float(valid.mean())
 
 
-def _icir(values: np.ndarray, eps: float) -> float:
-    valid = values[np.isfinite(values)]
+def _icir(values, eps: float) -> float:
+    arr = np.asarray(values, dtype=np.float64).reshape(-1)
+    valid = arr[np.isfinite(arr)]
     if valid.size == 0:
         return float("nan")
     std = float(valid.std())
@@ -173,8 +193,6 @@ def _icir(values: np.ndarray, eps: float) -> float:
 
 
 def summarize_ic(ic_series, rankic_series, eps: float = 1e-8):
-    """Summarize IC/RankIC series with NaN-aware means and information ratios."""
-
     ic = np.asarray(ic_series, dtype=np.float64).reshape(-1)
     rankic = np.asarray(rankic_series, dtype=np.float64).reshape(-1)
     return {
@@ -195,6 +213,119 @@ def _masked_mse(preds: np.ndarray, targets: np.ndarray, masks: np.ndarray) -> fl
     return float(np.mean(diff * diff))
 
 
+def _original_zero_fill_corr(pred, target, mask, eps: float = 1e-8) -> float:
+    pred_arr = _to_numpy(pred).astype(np.float64).reshape(-1)
+    target_arr = _to_numpy(target).astype(np.float64).reshape(-1)
+    mask_arr = _to_numpy(mask).astype(np.float64).reshape(-1)
+    if pred_arr.shape != target_arr.shape or pred_arr.shape != mask_arr.shape:
+        raise ValueError("pred, target, and mask must have the same flattened shape")
+    finite = np.isfinite(pred_arr) & np.isfinite(target_arr) & np.isfinite(mask_arr)
+    pred_filled = np.where(finite, pred_arr * mask_arr, 0.0)
+    target_filled = np.where(finite, target_arr * mask_arr, 0.0)
+    pred_centered = pred_filled - pred_filled.mean()
+    target_centered = target_filled - target_filled.mean()
+    pred_std = float(np.sqrt(np.mean(pred_centered * pred_centered)))
+    target_std = float(np.sqrt(np.mean(target_centered * target_centered)))
+    if pred_std <= eps or target_std <= eps:
+        return float("nan")
+    return float(np.clip(np.mean(pred_centered * target_centered) / (pred_std * target_std), -1.0, 1.0))
+
+
+def compute_original_ic_series(preds, targets, masks, asset_major: bool = False, eps: float = 1e-8) -> np.ndarray:
+    """StockMixer Original-compatible daily IC.
+
+    Original/evaluator.py computes pandas correlation after multiplying both
+    prediction and ground-truth arrays by mask. That zero-fills invalid assets
+    instead of removing them, so this helper intentionally preserves that
+    historical behavior for fair baseline comparison.
+    """
+
+    pred_arr, target_arr, mask_arr = _as_day_major(preds, targets, masks, asset_major=asset_major)
+    ic = np.empty(pred_arr.shape[0], dtype=np.float32)
+    for day in range(pred_arr.shape[0]):
+        ic[day] = _original_zero_fill_corr(pred_arr[day], target_arr[day], mask_arr[day], eps=eps)
+    return ic
+
+
+def original_positive_precision_at_k(pred, target, mask, k: int = 10) -> float:
+    """Original prec_10: positive realized-return rate inside predicted top-k.
+
+    The Original evaluator divides by the requested k, not by the effective
+    number of valid assets. This mirrors that behavior.
+    """
+
+    if int(k) <= 0:
+        raise ValueError("k must be positive")
+    pred_arr, target_arr, valid = _valid_indices(pred, target, mask)
+    if valid.size == 0:
+        return float("nan")
+    k_eff = min(int(k), int(valid.size))
+    pred_top = _top_k_valid_indices(pred_arr, valid, k_eff)
+    return float(np.sum(target_arr[pred_top] >= 0.0) / int(k))
+
+
+def original_topk_daily_return(pred, target_return, mask, k: int = 5) -> float:
+    """Original top-k long return used by sharpe5.
+
+    Original/evaluator.py divides the sum of selected realized returns by fixed
+    k. Datasets normally have at least k valid assets; when they do not, the
+    fixed denominator is kept for exact compatibility.
+    """
+
+    if int(k) <= 0:
+        raise ValueError("k must be positive")
+    pred_arr, target_arr, valid = _valid_indices(pred, target_return, mask)
+    if valid.size == 0:
+        return float("nan")
+    k_eff = min(int(k), int(valid.size))
+    pred_top = _top_k_valid_indices(pred_arr, valid, k_eff)
+    return float(np.sum(target_arr[pred_top]) / int(k))
+
+
+def evaluate_original_stockmixer_metrics(
+    preds,
+    targets,
+    masks,
+    asset_major: bool = False,
+    eps: float = 1e-8,
+):
+    """Return metrics compatible with StockMixer/src/Original/evaluator.py.
+
+    Names use an ``Original`` prefix because the legacy key ``RIC`` is ICIR,
+    not Spearman RankIC.
+    """
+
+    pred_arr, target_arr, mask_arr = _as_day_major(preds, targets, masks, asset_major=asset_major)
+    valid_sum = float(np.sum(np.where(np.isfinite(mask_arr), mask_arr, 0.0)))
+    if valid_sum <= eps:
+        original_mse = float("nan")
+    else:
+        diff = np.where(np.isfinite(pred_arr) & np.isfinite(target_arr) & np.isfinite(mask_arr), (pred_arr - target_arr) * mask_arr, 0.0)
+        original_mse = float(np.sum(diff * diff) / valid_sum)
+
+    original_ic = compute_original_ic_series(pred_arr, target_arr, mask_arr, eps=eps)
+    precision_values = np.empty(pred_arr.shape[0], dtype=np.float32)
+    sharpe_returns = np.empty(pred_arr.shape[0], dtype=np.float32)
+    for day in range(pred_arr.shape[0]):
+        precision_values[day] = original_positive_precision_at_k(pred_arr[day], target_arr[day], mask_arr[day], k=10)
+        sharpe_returns[day] = original_topk_daily_return(pred_arr[day], target_arr[day], mask_arr[day], k=5)
+
+    sharpe_valid = sharpe_returns[np.isfinite(sharpe_returns)]
+    if sharpe_valid.size == 0 or float(sharpe_valid.std()) <= eps:
+        original_sharpe5 = float("nan")
+    else:
+        # Original uses the literal 15.87 multiplier, approximately sqrt(252).
+        original_sharpe5 = float(sharpe_valid.mean() / sharpe_valid.std() * 15.87)
+
+    return {
+        "OriginalMSE": original_mse,
+        "OriginalIC": _nanmean(original_ic),
+        "OriginalICIR": _icir(original_ic, eps),
+        "OriginalPositivePrecision@10": _nanmean(precision_values),
+        "OriginalSharpe@5": original_sharpe5,
+    }
+
+
 def evaluate_predictions(
     preds,
     targets,
@@ -204,27 +335,20 @@ def evaluate_predictions(
     eps: float = 1e-8,
     min_valid: int = 3,
     annualization: int = 252,
+    transaction_cost_bps: float = 0.0,
+    include_diagnostics: bool = False,
+    include_original_metrics: bool = False,
 ):
-    """Evaluate predictions with clean mask-aware ReCIL metric names."""
-
-    pred_arr, target_arr, mask_arr = _as_day_major(preds, targets, masks, asset_major)
-    ic_series = compute_ic_series(
-        pred_arr,
-        target_arr,
-        mask_arr,
-        asset_major=False,
-        eps=eps,
-        min_valid=min_valid,
-    )
+    pred_arr, target_arr, mask_arr = _as_day_major(preds, targets, masks, asset_major=asset_major)
+    ic_series = compute_ic_series(pred_arr, target_arr, mask_arr, eps=eps, min_valid=min_valid)
     ic_summary = summarize_ic(ic_series["IC"], ic_series["RankIC"], eps=eps)
-
     precision_values = np.empty(pred_arr.shape[0], dtype=np.float32)
     daily_returns = np.empty(pred_arr.shape[0], dtype=np.float32)
     for day in range(pred_arr.shape[0]):
         precision_values[day] = precision_at_k(pred_arr[day], target_arr[day], mask_arr[day], k=k)
         daily_returns[day] = long_only_daily_return(pred_arr[day], target_arr[day], mask_arr[day], k=k)
 
-    return {
+    result = {
         "mse": _masked_mse(pred_arr, target_arr, mask_arr),
         "IC": ic_summary["IC"],
         "RankIC": ic_summary["RankIC"],
@@ -234,3 +358,22 @@ def evaluate_predictions(
         "num_valid_days": ic_summary["num_valid_days"],
         "num_days": int(pred_arr.shape[0]),
     }
+
+    if include_diagnostics or float(transaction_cost_bps) != 0.0:
+        turnover = topk_turnover(pred_arr, target_arr, mask_arr, k=k)
+        cost_returns = daily_returns.astype(np.float64) - float(transaction_cost_bps) * 1e-4 * turnover
+        result.update(
+            {
+                "RankICIR": ic_summary["RankICIR"],
+                f"Return@{int(k)}": _nanmean(daily_returns),
+                f"Sharpe@{int(k)}": result["Sharpe"],
+                f"Turnover@{int(k)}": _nanmean(turnover),
+                f"CostReturn@{int(k)}": _nanmean(cost_returns),
+                f"CostSharpe@{int(k)}": sharpe_ratio(cost_returns, annualization=annualization, eps=eps),
+                "NumDays": int(pred_arr.shape[0]),
+                "MeanValidAssets": float(np.mean(np.sum(mask_arr > 0.5, axis=1))),
+            }
+        )
+    if include_original_metrics:
+        result.update(evaluate_original_stockmixer_metrics(pred_arr, target_arr, mask_arr, eps=eps))
+    return result

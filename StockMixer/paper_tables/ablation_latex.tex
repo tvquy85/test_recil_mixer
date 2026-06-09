@@ -1,9 +1,6 @@
-\begin{tabular}{llllll}
-dataset & variant & RankIC_mean & IC_mean & Precision@10_mean & Sharpe_mean \\
+\begin{tabular}{llllllllll}
+dataset & variant & RankIC_mean & IC_mean & Precision@10_mean & Sharpe_mean & OriginalIC_mean & OriginalICIR_mean & OriginalPositivePrecision@10_mean & OriginalSharpe@5_mean \\
 \hline
-nasdaq & context_only & 0.0260 & 0.0210 & 0.0557 & 0.5077 \\
-nasdaq & full & 0.0133 & 0.0172 & 0.0492 & 1.5510 \\
-nasdaq & moe & 0.0198 & 0.0224 & 0.0555 & 1.1810 \\
-nasdaq & single_gate & \textbf{0.0321} & 0.0272 & 0.0532 & 0.8783 \\
-nasdaq & static & 0.0310 & 0.0343 & 0.0462 & 0.0276 \\
+nasdaq & full__ne2_init_small_temp05 & \textbf{0.0273} & 0.0247 & 0.0519 & 0.6974 & 0.0247 & 0.2520 & 0.5097 & 0.1047 \\
+nasdaq & moe__ne2_init_small_temp05 & 0.0197 & 0.0231 & 0.0460 & 0.4877 & 0.0231 & 0.2591 & 0.5008 & 0.8496 \\
 \end{tabular}

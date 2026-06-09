@@ -165,6 +165,66 @@ def test_low_rank_experts_shape_router_no_full_asset_matrix_and_backward():
     assert all(p.grad is not None for p in module.parameters())
 
 
+def test_context_routed_experts_router_init_and_temperature_control_entropy():
+    torch.manual_seed(123)
+    h = torch.randn(BATCH, ASSETS, D_MODEL)
+    context = torch.randn(BATCH, D_MODEL)
+    zero_module = RegimeConditionedLowRankExperts(
+        num_assets=ASSETS,
+        d_model=D_MODEL,
+        market_dim=D_MODEL,
+        num_experts=4,
+        context_routed=True,
+        router_init="zero",
+        dropout=0.0,
+    )
+    _, zero_router = zero_module(h, context)
+    assert torch.allclose(zero_router, torch.full_like(zero_router, 0.25), atol=1e-6)
+
+    torch.manual_seed(123)
+    small_module = RegimeConditionedLowRankExperts(
+        num_assets=ASSETS,
+        d_model=D_MODEL,
+        market_dim=D_MODEL,
+        num_experts=4,
+        context_routed=True,
+        router_init="small_normal",
+        router_temperature=1.0,
+        dropout=0.0,
+    )
+    _, small_router = small_module(h, context)
+    assert torch.isfinite(small_router).all()
+    assert torch.allclose(small_router.sum(dim=-1), torch.ones(BATCH), atol=1e-6)
+    assert not torch.allclose(small_router, torch.full_like(small_router, 0.25), atol=1e-8)
+
+    low_temp = RegimeConditionedLowRankExperts(
+        num_assets=ASSETS,
+        d_model=D_MODEL,
+        market_dim=D_MODEL,
+        num_experts=4,
+        context_routed=True,
+        router_init="small_normal",
+        router_temperature=0.5,
+        dropout=0.0,
+    )
+    high_temp = RegimeConditionedLowRankExperts(
+        num_assets=ASSETS,
+        d_model=D_MODEL,
+        market_dim=D_MODEL,
+        num_experts=4,
+        context_routed=True,
+        router_init="small_normal",
+        router_temperature=2.0,
+        dropout=0.0,
+    )
+    low_temp.router.load_state_dict(small_module.router.state_dict())
+    high_temp.router.load_state_dict(small_module.router.state_dict())
+    _, low_router = low_temp(h, context)
+    _, high_router = high_temp(h, context)
+    uniform = torch.full_like(low_router, 0.25)
+    assert torch.mean(torch.abs(low_router - uniform)) > torch.mean(torch.abs(high_router - uniform))
+
+
 def test_context_gated_residual_shape_gate_range_and_backward():
     h_base = torch.randn(BATCH, ASSETS, D_MODEL, requires_grad=True)
     h_inter = torch.randn(BATCH, ASSETS, D_MODEL, requires_grad=True)
@@ -196,3 +256,7 @@ def test_regime_modules_validate_shapes():
         RegimeConditionedLowRankExperts(ASSETS, D_MODEL)(torch.randn(BATCH, ASSETS + 1, D_MODEL), context)
     with pytest.raises(ValueError):
         ContextGatedResidual(D_MODEL)(h, torch.randn(BATCH, ASSETS + 1, D_MODEL), context)
+    with pytest.raises(ValueError):
+        RegimeConditionedLowRankExperts(ASSETS, D_MODEL, context_routed=True, router_init="bad")
+    with pytest.raises(ValueError):
+        RegimeConditionedLowRankExperts(ASSETS, D_MODEL, context_routed=True, router_temperature=0.0)

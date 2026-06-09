@@ -3,8 +3,12 @@ import pytest
 
 from src.recil.metrics import (
     compute_ic_series,
+    compute_original_ic_series,
     evaluate_predictions,
+    evaluate_original_stockmixer_metrics,
     long_only_daily_return,
+    original_positive_precision_at_k,
+    original_topk_daily_return,
     pearson_corr_masked,
     precision_at_k,
     sharpe_ratio,
@@ -163,3 +167,67 @@ def test_evaluate_predictions_asset_major_matches_day_major():
     day_major = evaluate_predictions(preds, targets, masks, k=1)
     asset_major = evaluate_predictions(preds.T, targets.T, masks.T, k=1, asset_major=True)
     assert day_major == asset_major
+
+
+def test_original_ic_zero_fills_masked_assets_unlike_recil_ic():
+    preds = np.array([[1.0, 2.0, 3.0, 100.0]], dtype=np.float32)
+    targets = np.array([[3.0, 2.0, 5.0, -100.0]], dtype=np.float32)
+    masks = np.array([[1.0, 1.0, 1.0, 0.0]], dtype=np.float32)
+    metrics = evaluate_predictions(preds, targets, masks, include_original_metrics=True)
+    expected_original = np.corrcoef(preds[0] * masks[0], targets[0] * masks[0])[0, 1]
+    assert metrics["OriginalIC"] == pytest.approx(expected_original)
+    assert metrics["OriginalIC"] != pytest.approx(metrics["IC"])
+
+
+def test_original_positive_precision_differs_from_topk_overlap_precision():
+    pred = np.arange(12, dtype=np.float32)
+    target = np.array([-1.0, -1.0, 10.0, 9.0, 8.0, 7.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0], dtype=np.float32)
+    mask = np.ones(12, dtype=np.float32)
+    original_precision = original_positive_precision_at_k(pred, target, mask, k=10)
+    recil_precision = precision_at_k(pred, target, mask, k=10)
+    assert original_precision == pytest.approx(0.4)
+    assert original_precision != pytest.approx(recil_precision)
+
+
+def test_original_icir_uses_original_daily_ic_series():
+    preds = np.array([[1.0, 2.0, 3.0, 100.0], [3.0, 2.0, 1.0, -100.0]], dtype=np.float32)
+    targets = np.array([[3.0, 2.0, 5.0, -100.0], [1.0, 2.0, 3.0, 100.0]], dtype=np.float32)
+    masks = np.array([[1.0, 1.0, 1.0, 0.0], [1.0, 1.0, 1.0, 0.0]], dtype=np.float32)
+    original_ic = compute_original_ic_series(preds, targets, masks)
+    metrics = evaluate_original_stockmixer_metrics(preds, targets, masks)
+    assert metrics["OriginalIC"] == pytest.approx(np.mean(original_ic))
+    assert metrics["OriginalICIR"] == pytest.approx(np.mean(original_ic) / np.std(original_ic))
+
+
+def test_original_sharpe5_uses_predicted_top5_and_legacy_annualizer():
+    preds = np.tile(np.arange(6, dtype=np.float32), (2, 1))
+    targets = np.array(
+        [
+            [100.0, 0.01, 0.02, 0.03, 0.04, 0.05],
+            [100.0, -0.02, -0.01, 0.0, 0.01, 0.02],
+        ],
+        dtype=np.float32,
+    )
+    masks = np.ones_like(preds)
+    daily = np.array(
+        [
+            original_topk_daily_return(preds[0], targets[0], masks[0], k=5),
+            original_topk_daily_return(preds[1], targets[1], masks[1], k=5),
+        ]
+    )
+    metrics = evaluate_predictions(preds, targets, masks, include_original_metrics=True)
+    assert daily.tolist() == pytest.approx([0.03, 0.0])
+    assert metrics["OriginalSharpe@5"] == pytest.approx(daily.mean() / daily.std() * 15.87)
+
+
+def test_original_metrics_are_opt_in_and_never_use_legacy_ric_key():
+    preds = np.tile(np.arange(12, dtype=np.float32), (2, 1))
+    targets = np.flip(preds, axis=1).copy()
+    masks = np.ones_like(preds)
+    default_metrics = evaluate_predictions(preds, targets, masks)
+    original_metrics = evaluate_predictions(preds, targets, masks, include_original_metrics=True)
+    forbidden_key = "R" + "IC"
+    assert "OriginalIC" not in default_metrics
+    assert "OriginalIC" in original_metrics
+    assert "OriginalICIR" in original_metrics
+    assert forbidden_key not in original_metrics

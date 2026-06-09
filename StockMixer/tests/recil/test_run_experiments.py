@@ -22,6 +22,14 @@ def test_build_commands_deterministic_order_and_flags(tmp_path):
             "--quick-test",
             "--device",
             "cpu",
+            "--router-init",
+            "small_normal",
+            "--router-temperature",
+            "0.5",
+            "--interaction-warmup-epochs",
+            "5",
+            "--run-tag",
+            "ne2_temp05",
             "--output-dir",
             str(tmp_path),
         ]
@@ -40,6 +48,10 @@ def test_build_commands_deterministic_order_and_flags(tmp_path):
         assert "--epochs" in command and "3" in command
         assert "--output-dir" in command and str(tmp_path) in command
         assert "--device" in command and "cpu" in command
+        assert "--router-init" in command and "small_normal" in command
+        assert "--router-temperature" in command and "0.5" in command
+        assert "--interaction-warmup-epochs" in command and "5" in command
+        assert "--run-tag" in command and "ne2_temp05" in command
 
 
 def test_dry_run_prints_commands_and_creates_no_outputs(tmp_path):

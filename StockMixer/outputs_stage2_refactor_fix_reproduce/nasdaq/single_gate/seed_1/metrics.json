@@ -1,0 +1,40 @@
+{
+  "best_score": 0.027485031461721866,
+  "parameter_report": {
+    "active_params": 108853,
+    "all_params": 108853,
+    "module_params": {
+      "context_encoder": 1390,
+      "context_gate": 3232,
+      "indicator_encoder": 4672,
+      "prediction_head": 4353,
+      "single_expert": 68902,
+      "temporal_mixers": 26304
+    },
+    "variant": "single_gate"
+  },
+  "peak_gpu_memory_mb": 118.59814453125,
+  "test": {
+    "CostReturn@10": 4.869700925665876e-05,
+    "CostSharpe@10": 0.058562604947657824,
+    "IC": 0.025492376672449808,
+    "ICIR": 0.2611703850630411,
+    "MeanValidAssets": 1022.7848101265823,
+    "NumDays": 237,
+    "OriginalIC": 0.025476926270644434,
+    "OriginalICIR": 0.261475411873641,
+    "OriginalMSE": 0.00038460075446562,
+    "OriginalPositivePrecision@10": 0.4957805960615979,
+    "OriginalSharpe@5": -0.7297324400022626,
+    "Precision@10": 0.04810126672817182,
+    "RankIC": 0.028897868884424777,
+    "RankICIR": 0.2912847962647817,
+    "Return@10": 8.203034417324047e-05,
+    "Sharpe": 0.09868688042011632,
+    "Sharpe@10": 0.09868688042011632,
+    "Turnover@10": 0.033333333830038704,
+    "mse": 0.00038460075446561983,
+    "num_days": 237,
+    "num_valid_days": 237
+  }
+}

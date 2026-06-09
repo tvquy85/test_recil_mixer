@@ -1,0 +1,45 @@
+{
+  "best_score": -0.020676693238783628,
+  "parameter_report": {
+    "active_params": 38563,
+    "all_params": 38563,
+    "interaction_strength": 1.0,
+    "module_params": {
+      "context_encoder": 1390,
+      "indicator_encoder": 4672,
+      "moe_experts": 1844,
+      "prediction_head": 4353,
+      "temporal_mixers": 26304
+    },
+    "router_init": "small_normal",
+    "router_temperature": 0.5,
+    "variant": "moe"
+  },
+  "peak_gpu_memory_mb": null,
+  "test": {
+    "CostReturn@10": 0.027265514247119427,
+    "CostSharpe@10": 545.2939174352548,
+    "IC": -0.02180725848302245,
+    "ICIR": -0.29926926215320676,
+    "MeanValidAssets": 20.0,
+    "NumDays": 4,
+    "OriginalIC": -0.02180725848302245,
+    "OriginalICIR": -0.29926926215320676,
+    "OriginalMSE": 0.0006055658666171621,
+    "OriginalPositivePrecision@10": 1.0,
+    "OriginalSharpe@5": 696.624009475708,
+    "Precision@10": 0.4750000089406967,
+    "RankIC": -0.012030075304210186,
+    "RankICIR": -0.11330717109465406,
+    "Return@10": 0.027265514247119427,
+    "Sharpe": 545.2939174352548,
+    "Sharpe@10": 545.2939174352548,
+    "Turnover@10": 0.2500000074505806,
+    "mse": 0.0006055658666171621,
+    "num_days": 4,
+    "num_valid_days": 4,
+    "router_entropy_norm": 0.999960463390795,
+    "router_max_mean": 0.5033977627754211,
+    "router_std": 0.0037019525188952684
+  }
+}

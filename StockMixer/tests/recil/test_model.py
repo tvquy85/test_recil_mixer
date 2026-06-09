@@ -114,3 +114,34 @@ def test_forward_signature_outputs_return_scores_without_base_price():
     pred, _ = _model("context_only")(x, context=context)
     assert pred.shape == (BATCH, ASSETS)
     assert pred.ndim == 2
+
+
+def test_router_controls_and_interaction_strength_are_reported_and_applied():
+    x, context = _inputs()
+    model = ReCILMixer(
+        num_assets=ASSETS,
+        num_features=FEATURES,
+        d_model=D_MODEL,
+        context_dim=CONTEXT_DIM,
+        market_dim=8,
+        num_experts=4,
+        scales=(1, 2, 4),
+        dropout=0.0,
+        variant="moe",
+        router_init="small_normal",
+        router_temperature=0.5,
+    )
+    report = model.parameter_report()
+    assert report["router_init"] == "small_normal"
+    assert report["router_temperature"] == 0.5
+
+    model.set_interaction_strength(0.0)
+    pred_base, aux_base = model(x, context)
+    model.set_interaction_strength(1.0)
+    pred_full, aux_full = model(x, context)
+    assert aux_base["router_weights"].shape == (BATCH, 4)
+    assert aux_full["router_weights"].shape == (BATCH, 4)
+    assert not torch.allclose(pred_base, pred_full)
+
+    with pytest.raises(ValueError):
+        model.set_interaction_strength(1.5)

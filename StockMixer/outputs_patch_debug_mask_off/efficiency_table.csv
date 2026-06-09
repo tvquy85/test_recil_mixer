@@ -1,0 +1,3 @@
+dataset,variant,seed,device_resolved,num_params,train_log_epochs,time_per_epoch_sec,gpu_memory_peak,RankIC
+nasdaq,static,0,cuda,103055,30,11.346804099999888,115.56640625,0.005522910976106544
+nasdaq,static,1,cuda,103055,30,12.705711699999787,115.56640625,0.010989543116471694

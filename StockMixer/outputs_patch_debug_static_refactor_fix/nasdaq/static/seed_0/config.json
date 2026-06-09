@@ -1,0 +1,53 @@
+{
+  "alpha_rank": 0.1,
+  "amp": false,
+  "amp_resolved": false,
+  "batch_size": 1,
+  "d_model": 64,
+  "data_root": "D:\\Conferences\\PRICAI\\ReCIL-Mixer\\StockMixer\\dataset",
+  "dataset": "nasdaq",
+  "device": "auto",
+  "device_resolved": "cuda",
+  "dropout": 0.1,
+  "epochs": 30,
+  "gate_init": -2.0,
+  "grad_clip_norm": 0.0,
+  "lambda_entropy": 0.0,
+  "lookback": 16,
+  "lr": 0.0001,
+  "market_dim": 32,
+  "mask_invalid_assets": true,
+  "max_pairs_per_day": 4096,
+  "num_experts": 4,
+  "num_workers": 0,
+  "optimizer": "AdamW",
+  "output_dir": "outputs_patch_debug_static_refactor_fix",
+  "parameter_report": {
+    "active_params": 104231,
+    "all_params": 104231,
+    "module_params": {
+      "indicator_encoder": 4672,
+      "prediction_head": 4353,
+      "static_expert": 68902,
+      "temporal_mixers": 26304
+    },
+    "variant": "static"
+  },
+  "patience": 0,
+  "quick_test": false,
+  "rank": 0,
+  "resolved_dataset": "nasdaq",
+  "scale_gate_temperature": 1.0,
+  "scales": [
+    1,
+    2,
+    4
+  ],
+  "seed": 0,
+  "steps": 1,
+  "strict_deterministic": false,
+  "synthetic": false,
+  "transaction_cost_bps": 10.0,
+  "variant": "static",
+  "weight_decay": 0.0
+}

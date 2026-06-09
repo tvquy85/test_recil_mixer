@@ -16,7 +16,18 @@ from .metrics import evaluate_predictions
 from .model import ReCILMixer
 
 
-METRIC_COLUMNS = ("IC", "RankIC", "ICIR", "Precision@10", "Sharpe")
+METRIC_COLUMNS = (
+    "IC",
+    "RankIC",
+    "ICIR",
+    "Precision@10",
+    "Sharpe",
+    "OriginalIC",
+    "OriginalICIR",
+    "OriginalPositivePrecision@10",
+    "OriginalSharpe@5",
+    "OriginalMSE",
+)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -291,6 +302,20 @@ def _read_train_log_epochs(path: Path) -> int:
         return sum(1 for _ in csv.DictReader(f))
 
 
+def _read_mean_epoch_seconds(path: Path) -> float | str:
+    if not path.exists():
+        return ""
+    values = []
+    with path.open("r", encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            value = _finite_float(row.get("epoch_sec"))
+            if value == value:
+                values.append(value)
+    if not values:
+        return ""
+    return float(np.mean(values))
+
+
 def _infer_num_params(run_dir: Path, config: dict) -> int | str:
     try:
         preds = np.load(run_dir / "predictions.npy")
@@ -318,7 +343,9 @@ def efficiency_analysis(output_dir):
     rows = []
     for run in discover_runs(root):
         config = read_json(run["run_dir"] / "config.json")
-        metrics = read_json(run["run_dir"] / "metrics.json").get("test", {})
+        metrics_payload = read_json(run["run_dir"] / "metrics.json")
+        metrics = metrics_payload.get("test", {})
+        train_log = run["run_dir"] / "train_log.csv"
         rows.append(
             {
                 "dataset": run["dataset"],
@@ -326,14 +353,12 @@ def efficiency_analysis(output_dir):
                 "seed": run["seed"],
                 "device_resolved": config.get("device_resolved", ""),
                 "num_params": _infer_num_params(run["run_dir"], config),
-                "train_log_epochs": _read_train_log_epochs(run["run_dir"] / "train_log.csv"),
-                "time_per_epoch_sec": "",
-                "gpu_memory_peak": "",
+                "train_log_epochs": _read_train_log_epochs(train_log),
+                "time_per_epoch_sec": _read_mean_epoch_seconds(train_log),
+                "gpu_memory_peak": metrics_payload.get("peak_gpu_memory_mb", ""),
                 "RankIC": metrics.get("RankIC", ""),
             }
         )
-    if rows:
-        warnings.warn("train_log.csv has no wall-clock epoch time; time_per_epoch_sec left blank", RuntimeWarning)
     fields = ["dataset", "variant", "seed", "device_resolved", "num_params", "train_log_epochs", "time_per_epoch_sec", "gpu_memory_peak", "RankIC"]
     write_csv(root / "efficiency_table.csv", rows, fields)
     return rows
@@ -381,11 +406,43 @@ def make_tables(output_dir):
     regime = _read_csv(root / "regime_results.csv")
     efficiency = _read_csv(root / "efficiency_table.csv")
     (table_dir / "main_results_latex.tex").write_text(
-        _latex_table(summary, ["dataset", "variant", "seed", "IC", "RankIC", "ICIR", "Precision@10", "Sharpe"], metric_to_bold="RankIC"),
+        _latex_table(
+            summary,
+            [
+                "dataset",
+                "variant",
+                "seed",
+                "IC",
+                "RankIC",
+                "ICIR",
+                "Precision@10",
+                "Sharpe",
+                "OriginalIC",
+                "OriginalICIR",
+                "OriginalPositivePrecision@10",
+                "OriginalSharpe@5",
+            ],
+            metric_to_bold="RankIC",
+        ),
         encoding="utf-8",
     )
     (table_dir / "ablation_latex.tex").write_text(
-        _latex_table(mean_std, ["dataset", "variant", "RankIC_mean", "IC_mean", "Precision@10_mean", "Sharpe_mean"], metric_to_bold="RankIC_mean"),
+        _latex_table(
+            mean_std,
+            [
+                "dataset",
+                "variant",
+                "RankIC_mean",
+                "IC_mean",
+                "Precision@10_mean",
+                "Sharpe_mean",
+                "OriginalIC_mean",
+                "OriginalICIR_mean",
+                "OriginalPositivePrecision@10_mean",
+                "OriginalSharpe@5_mean",
+            ],
+            metric_to_bold="RankIC_mean",
+        ),
         encoding="utf-8",
     )
     (table_dir / "regime_latex.tex").write_text(
